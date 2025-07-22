@@ -134,9 +134,9 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
         return [psip, Rpp*psi - chiT*RR**3 * np.sin(psi/RR)]
     
     def solveom(theta1, vheta1, eta1, tautab):
-        tau1 = tautab[0] # Should be 1
-        psip1 = vheta1 + theta1 # Conformal field
-        psi1 = theta1 * tau1 - vheta1*(1-tau1) # Velocity of conformal field
+        # Assume tau1 = 1
+        psi1 = theta1 # Conformal field
+        psip1 = vheta1 + theta1 # Velocity of conformal field
         sol = odeint(dpsidtau, [psi1, psip1], tautab, args = (eta1,))
     
         return sol, tautab
