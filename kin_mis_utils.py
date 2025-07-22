@@ -26,7 +26,7 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     Args:
         fAGeV (float): Axion decay constant in GeV.
         theta1 (float): Axion field value at η₁.
-        vheta1 (float): Axion velocity value at η₁.
+        vheta1 (float): Axion velocity value/H1MeV at η₁.
         tautab (array_like): Array of normalized conformal time τ = η/η₁ over which to solve the EOM.
 
     Returns:
@@ -42,7 +42,7 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
             - 'mAMeV_trap': Axion mass at which axion becomes trapped in MeV (if occurs), else None.
             - 'TMeVtab': Array of temperatures in MeV corresponding to tautab.
             - 'thetatab': Field values corresponding to tautab.
-            - 'vhetatab': Velocity values corresponding to tautab.
+            - 'vhetatab': Velocity values/H1MeV corresponding to tautab.
             - 'Omegah2tab': Array of axion relic density Ωh² corresponding to tautab.
     """
 
@@ -141,6 +141,8 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     
         return sol, tautab
 
+    vheta1 = vheta1/1000 # Convert into velocity/H1GeV
+
     sol, tau = solveom(theta1, vheta1, eta1, tautab)
 
     Rtab = R_func(tau*eta1)/R1 # Normalized scale factor
@@ -184,7 +186,7 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     return {"fAGeV": fAGeV, "mAMeV": mAMeV, 
             "T1MeV": T1MeV, "H1MeV": H1MeV, "R1": R1,
             "TMeV_trap": TMeV_trap, "HMeV_trap": HMeV_trap, "R_trap": R_trap, "mAMeV_trap": mAMeV_trap,
-            "TMeVtab": TMeVtab, "thetatab": thetatab, "vhetatab": vhetatab, "Omegah2tab": Omegah2tab}
+            "TMeVtab": TMeVtab, "thetatab": thetatab, "vhetatab": vhetatab*10**3, "Omegah2tab": Omegah2tab}
 
 def genspec_kinetic_mis(N, L, R, theta1, vheta1, hom = False):
     """
@@ -282,7 +284,7 @@ def find_params(fAGeV, tautab, vheta1_range, target = 0.12, tol = 0.005):
                 left, right = right, left
 
             res = minimize_scalar(compute_omega, bounds = (left, right), 
-                                  args = (vheta1,), method = 'bounded', options = {'xatol': 1e-12}) # Optimize to find correct minima
+                                  args = (vheta1,), method = 'bounded', options = {'xatol': 1e-3}) # Optimize to find correct minima
             if res.success and res.fun < tol:
                 matches.append((res.x, vheta1, res.fun))
         return matches
