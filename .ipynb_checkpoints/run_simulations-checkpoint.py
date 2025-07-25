@@ -13,7 +13,6 @@ from pyaxions import simgen as sg
 # Simulation parameters
 N = 128 # Points/dimension
 L = 3 # Box length in L1 units
-R = 1.0 # Scale factor in R1 units
 msa = 1.0 # String resolution
 tauf = 3.0 # End of simulation 
 
@@ -28,7 +27,7 @@ for fAGeV, theta1_vheta1_list in fAGeV_theta1_vheta1_dict.items():
         print('>>> f = {:.2e} GeV <<<'.format(fAGeV))
 
         # Initial conditions
-        k, m, v = genspec_kinetic_mis(N, L, R, theta1, vheta1)
+        k, m, v = genspec_kinetic_mis(N, L, theta1, vheta1)
     
         print(r'Initial velocity of zero mode of conformal field: {:.2f}.'.format(v[0]))
         print('Initial conditions created.')

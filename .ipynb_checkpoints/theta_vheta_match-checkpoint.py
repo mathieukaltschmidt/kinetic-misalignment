@@ -8,11 +8,11 @@ The results are saved to a JSON file named 'parameter_matches.json' (converts Nu
 import numpy as np
 import json
 from multiprocessing import Pool
-from kin_mis_utils import evolution_kinetic_mis, find_parameters
+from kin_mis_utils import evolution_kinetic_mis, find_params
 
 # Input
-vheta1_range_list = [(1250, 1260, 1), (1260, 1270, 1), (1270, 1280, 1), (1290, 1300, 1), (1300, 1310, 1)] # Define vheta1 ranges and steps
-fAGeV = 1e11 # Axion decay constant in GeV
+vheta1_range_list = [(10, 11, 1.0)] # Define vheta1 ranges and steps
+fAGeV = 1e10 # Axion decay constant in GeV
 
 def worker(vheta1_range):
     tautab = np.linspace(1, 5, 1000)  # Normalized conformal time, SHOULD START AT 1!
