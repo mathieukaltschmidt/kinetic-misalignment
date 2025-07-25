@@ -22,11 +22,13 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     """
     Solves the axion field equation of motion for a kinetic misalignment scenario within the jAxions cosmological framework
     and computes the resulting axion relic abundance.
+    Physical constants (GN, T0, rhocritGeVcm^-3) are taken from
+    https://pdg.lbl.gov/2015/reviews/rpp2015-rev-astrophysical-constants.pdf.
 
     Args:
         fAGeV (float): Axion decay constant in GeV.
         theta1 (float): Axion field value at η₁.
-        vheta1 (float): Axion velocity value/H1MeV at η₁.
+        vheta1 (float): Axion velocity value/H1 at η₁.
         tautab (array_like): Array of normalized conformal time τ = η/η₁ over which to solve the EOM.
 
     Returns:
@@ -40,14 +42,16 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
             - 'HMeV_trap': Hubble parameter at which axion becomes trapped (if occurs), else None.
             - 'R_trap': Scale factor at which axion becomes trapped (if occurs), else None.
             - 'mAMeV_trap': Axion mass at which axion becomes trapped in MeV (if occurs), else None.
+            - 'grhotab': Evolution of energy density dof.
+            - 'gstab': # Evolution of entropy density dof.
             - 'TMeVtab': Array of temperatures in MeV corresponding to tautab.
             - 'thetatab': Field values corresponding to tautab.
-            - 'vhetatab': Velocity values/H1MeV corresponding to tautab.
+            - 'vhetatab': Velocity values/H1 corresponding to tautab.
             - 'Omegah2tab': Array of axion relic density Ωh² corresponding to tautab.
     """
-
+    
     # ----- Constants -----
-    GN = 1/(1.22e19*1e3)**2 # Newton’s gravitational constant in MeV⁻²
+    GN = 1/(1.22093e19*1e3)**2 # Newton’s gravitational constant in MeV⁻²
 
     # ----- Degrees of Freedom -----
     log10TMeV = np.array([0.00, 0.50, 1.00, 1.25, 1.60, 2.00, 2.15, 2.20, 2.40, 2.50, 3.00, 
@@ -128,20 +132,22 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     def dpsidtau(V, tau, eta1):        
         psi, psip = V
         chiT = chi_norm_func(tau)
-        Rpp = Rpp_func(tau*eta1)
+        Rpp = Rpp_func(tau*eta1)/tau**2 
         RR = R_func(tau*eta1)/R_func(eta1) # RR = R/R(η₁)
     
         return [psip, Rpp*psi - chiT*RR**3 * np.sin(psi/RR)]
-    
+
     def solveom(theta1, vheta1, eta1, tautab):
-        # Assume tau1 = 1
+        # Assume τ₁ = tautab[0] = 1
+        # ψ = θ * R/R₁
+        # ψ' = ∂_τ psi = R/R₁ * ∂_τ θ + θ * ∂_τ R/R₁ 
+        #    =  R/R₁ * R * η₁ * H₁ * (θ̇/H₁) + θ * (R_τ/R₁) with η₁ = 1/H₁R₁
+        #    = (R/R₁)^2 * (θ̇/H₁) + θ * (R_τ/R₁)
         psi1 = theta1 # Conformal field
         psip1 = vheta1 + theta1 # Velocity of conformal field
         sol = odeint(dpsidtau, [psi1, psip1], tautab, args = (eta1,))
     
         return sol, tautab
-
-    vheta1 = vheta1/1000 # Convert into velocity/H1GeV
 
     sol, tau = solveom(theta1, vheta1, eta1, tautab)
 
@@ -152,10 +158,10 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     
     # ----- Trapping -----
     TMeVtab = np.array([T_func(tau * eta1) for tau in tautab]) # Temperatures corresponding to tautab values
-    chinormtab = np.array([chi_norm_func(tau) for tau in tautab])
+    chinormtab = np.array([chi_norm_func(tau) for tau in tautab]) # mA^2/H₁² = χ/(H₁fA)²
      
-    KE = 1/2 * (vhetatab/Rtab)**2 # Kinetic energy term: (1/2) * θ̇^2
-    PE = chinormtab * (1-np.cos(thetatab)) # Potential energy term: χ(T) * V(θ)
+    KE = 1/2 * (vhetatab/Rtab)**2 # Kinetic energy term in (H₁fA)² units = (1/2) * (θ̇/H₁)²
+    PE = chinormtab * (1-np.cos(thetatab)) # Potential energy term in (H₁fA)² units:  χ(T) * V(θ)
     energy_diff = KE - PE
     
     idx = np.where(np.diff(np.sign(energy_diff)))[0]
@@ -168,36 +174,41 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     else:
         TMeV_trap, R_trap, HMeV_trap, mAMeV_trap = None, None, None, None
         
-    # ----- Axion Number Density -----
+    # ----- Axion Number Density in (H₁fA)² units -----
     # dimensionless number density na = (kinetic energy + potential energy) / sqrt(χ)
-    # kinetic energy term: (1/2) * (θ̇)²
-    # potential energy term: χ(T) * V(θ)
     na_t = (1/2 * (vhetatab/Rtab)**2 + chinormtab * (1-np.cos(thetatab))) / np.sqrt(chinormtab)
 
-    R_t3 = (2.34e-4 * 1e-6 / TMeVtab)**3 * 3.91 / igs(np.log10(TMeVtab)) # Expansion factor of universe R³
+    # CMB temperature today in MeV
+    T0MeV = 2.7255 * 8.617333262e-5 * 1e-6
+
+    R_t3 = (T0MeV/TMeVtab)**3 * 3.91 / igs(np.log10(TMeVtab)) # Expansion factor of universe R³
     
     naR3_t = na_t * R_t3 # Comoving number density
 
     # ----- Axion Relic Density -----    
-    rhocritMeV4 = 1.053e-5 * 1e3 * (1.97e-5 * 1e-6)**3 # Convert critical density from GeV/cm³ to MeV⁴ units
-    constant = H1MeV * 1e-3 * fAGeV**2 * 10**12 / rhocritMeV4 # Convert to MeV⁴
+    rhocritMeV4 = 1.05375e-5 * 1e3 * (1.97327e-5 * 1e-6)**3 # Convert critical density from GeV/cm³ to MeV⁴ units with h=1
+    constant = H1MeV * (fAGeV * 1e3)**2 / rhocritMeV4 # H₁fA²/ρ_crit in MeV⁻¹
     Omegah2tab = mAMeV * naR3_t  * constant # axion mass * comoving number density / critical density
+
+    # ----- Additional output -----
+    grhotab = [igrho(np.log10(T)) for T in TMeVtab] # Evolution of energy density dof
+    gstab = [igs(np.log10(T)) for T in TMeVtab] # Evolution of entropy density dof
 
     return {"fAGeV": fAGeV, "mAMeV": mAMeV, 
             "T1MeV": T1MeV, "H1MeV": H1MeV, "R1": R1,
             "TMeV_trap": TMeV_trap, "HMeV_trap": HMeV_trap, "R_trap": R_trap, "mAMeV_trap": mAMeV_trap,
-            "TMeVtab": TMeVtab, "thetatab": thetatab, "vhetatab": vhetatab*10**3, "Omegah2tab": Omegah2tab}
+            "grhotab": grhotab, "gstab": gstab,
+            "TMeVtab": TMeVtab, "thetatab": thetatab, "vhetatab": vhetatab, "Omegah2tab": Omegah2tab}
 
-def genspec_kinetic_mis(N, L, R, theta1, vheta1, hom = False):
+def genspec_kinetic_mis(N, L, theta1, vheta1, hom = False):
     """
     Creates the IC for jAxions spax option in 'initialspectrum.dat' for the kinetic misalignment scenario.
 
     Args:
         N (int): Number of points per spatial dimension.
         L (float): Physical size of simulation box in L1 units.
-        R (float): Scale factor at initial time in terms of R1.
         theta1 (float): Axion field value at η₁.
-        vheta1 (float): Axion velocity value at η₁.
+        vheta1 (float): Axion velocity/H1 value at η₁.
         hom (float, optional): If set to True, no fluctuations added. Defaults to False.
 
     Returns:
@@ -210,8 +221,8 @@ def genspec_kinetic_mis(N, L, R, theta1, vheta1, hom = False):
     k0 = 2*np.pi/L # Smallest non-zero wavenumber
     k = k0*np.arange(2*N) # Full range of FFT wavenumbers
 
-    m0 = theta1 * R
-    v0 = R**2 * vheta1 + theta1
+    m0 = theta1
+    v0 = vheta1 + theta1
 
     # |FT{Ψ}| for jAxions
     m = np.empty_like(k)
