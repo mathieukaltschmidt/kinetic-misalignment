@@ -119,8 +119,12 @@ verbose = False
 # Output data arrays; if True, data arrays of the evolution of axion abundance, energy, spectra, etc. are also saved as pickle files at [path]/out_analysis
 outarrays = True
 #
+# Momentum cutoff for the axion number spectrum; computes Omega_Ah^2 by summing the spectrum up to k < kcut
+kcut = 8e+3
+#
 # List specifying the spectrum data output times
 cts_spout = np.linspace(2.4,5,27)  # choose to output spactrum data at ct = 2.4,2.5,2.6,...,5.0
+#cts_spout = np.linspace(2.4,6,37)  # choose to output spactrum data at ct = 2.4,2.5,2.6,...,6.0
 #
 # Output map figures; if True, produce pdf files of theta and energy fluctuation maps and energy projection maps
 # usetex option enables to print labels in tex format (depends on environments)
@@ -131,6 +135,8 @@ usetex = False
 # To avoid this, we exclude the data at the initial time for the evaluation of the sigmamax if vheta1 becomes larger than the value specified below.
 vheta1_crit = 1e+4
 # 
+# Perform the fit and extrapolation of the axion number (regacy)
+dofit = False
 # Fit range for extrapolation of the DM abundance
 tstart = 4.0 
 tend = 5.0
@@ -205,11 +211,19 @@ if verbose:
     print('calculating axion number ...',end='',flush=True)
 nat = []
 nact = []
+icutl = []
+klb = kl[k_below]
+icut = np.abs(klb - kcut).argmin()
 for it in range(len(ct)):
-    w = np.sqrt(kl**2/R[it]**2 + mA[it]**2)
-    wc = np.sqrt(kl**2/R[it]**2 + (1-theta_std[it]**2)*mA[it]**2)
-    nat.append([(espCK.esp[it]/w).sum()/L**3/R[it]**4,(espG.esp[it]/w).sum()/L**3/R[it]**4,(espS.esp[it]/w).sum()/L**3/R[it]**4])
-    nact.append([(espCK.esp[it]/wc).sum()/L**3/R[it]**4,(espG.esp[it]/wc).sum()/L**3/R[it]**4,(espS.esp[it]/wc).sum()/L**3/R[it]**4])
+    espKb = espCK.esp[it,k_below]
+    espGb = espG.esp[it,k_below]
+    espVb = espS.esp[it,k_below]
+    nasp = klb**3*(espKb+espGb+espVb)/(2*np.pi**2)/np.sqrt(mA[it]**2*R[it]**2 + klb**2)/nm[k_below]
+    # integrate up to the cutoff momentum in order to avoid overestimation due to artificial increase in the number spectrum at high k
+    w = np.sqrt(klb[:icut]**2/R[it]**2 + mA[it]**2)
+    wc = np.sqrt(klb[:icut]**2/R[it]**2 + (1-theta_std[it]**2)*mA[it]**2)
+    nat.append([(espKb[:icut]/w).sum()/L**3/R[it]**4,(espGb[:icut]/w).sum()/L**3/R[it]**4,(espVb[:icut]/w).sum()/L**3/R[it]**4])
+    nact.append([(espKb[:icut]/wc).sum()/L**3/R[it]**4,(espGb[:icut]/wc).sum()/L**3/R[it]**4,(espVb[:icut]/wc).sum()/L**3/R[it]**4])
 nat = np.array(nat)
 nact = np.nan_to_num(np.array(nact)) # wc may become nan if theta_std is large
 
@@ -221,55 +235,57 @@ factor = factorOmega(fAGeV)
 Oa = factor*R[:,None]**3*nat
 Oac = factor*R[:,None]**3*nact
 Oae = factor*R**3*nae
+# K+G+V
+Oatot = Oa[:,0] + Oa[:,1] + Oa[:,2]
+Oactot = Oac[:,0] + Oac[:,1] + Oac[:,2]
 if verbose:
     print('done',flush=True)
 
 # fit
-if verbose:
-    print('fit and extrapolation ...',end='',flush=True)
-def fitn(tdata,ndata,tstart=4.0,tend=5.0):
-    def func(t,a1,a2):
-        return 1/(1+a1*(1-1/t**a2))
-    mask = tdata >= tstart
-    tm = tdata[mask]
-    nm = ndata[mask]
-    iend = np.abs(tm - tend).argmin() # fit in the range tstart <= t < tend
-    x = tm[:iend]/tm[0]
-    y = nm[:iend]/nm[0]
-    p, pv = curve_fit(func, x, y, p0=[1,7], maxfev = 20000)
-    # return data of the best-fit curve
-    nfit = nm[0]*func(tm/tm[0],*p)
-    return p,pv,tm,nfit,nm[0]
-Oatot = Oa[:,0] + Oa[:,1] + Oa[:,2] # K+G+V
-Oactot = Oac[:,0] + Oac[:,1] + Oac[:,2] # K+G+V
-peres,pveres,tf,Oaef,fprefactore = fitn(ct,Oae,tstart,tend)
-try:
-    pres,pvres,tf,Oaf,fprefactor = fitn(ct,Oatot,tstart,tend)
-except:
-    pres = np.full_like(peres,np.nan)
-    pvres = np.full_like(pveres,np.nan)
-    Oaf = np.full_like(Oaef,np.nan)
-    fprefactor = np.nan
-    print('fit OmegaA failed! (theta1 = %f, vheta1 = %f)'%(theta1,vheta1))
-try:
-    pcres,pvcres,tf,Oacf,fprefactorc = fitn(ct,Oactot,tstart,tend)
-except:
-    pcres = np.full_like(peres,np.nan)
-    pvcres = np.full_like(pveres,np.nan)
-    Oacf = np.full_like(Oaef,np.nan)
-    fprefactorc = np.nan
-    print('fit OmegaA_c failed! (theta1 = %f, vheta1 = %f)'%(theta1,vheta1))
+if dofit:
+    if verbose:
+        print('fit and extrapolation ...',end='',flush=True)
+    def fitn(tdata,ndata,tstart=4.0,tend=5.0):
+        def func(t,a1,a2):
+            return 1/(1+a1*(1-1/t**a2))
+        mask = tdata >= tstart
+        tm = tdata[mask]
+        nm = ndata[mask]
+        iend = np.abs(tm - tend).argmin() # fit in the range tstart <= t < tend
+        x = tm[:iend]/tm[0]
+        y = nm[:iend]/nm[0]
+        p, pv = curve_fit(func, x, y, p0=[1,7], maxfev = 20000)
+        # return data of the best-fit curve
+        nfit = nm[0]*func(tm/tm[0],*p)
+        return p,pv,tm,nfit,nm[0]
+    peres,pveres,tf,Oaef,fprefactore = fitn(ct,Oae,tstart,tend)
+    try:
+        pres,pvres,tf,Oaf,fprefactor = fitn(ct,Oatot,tstart,tend)
+    except:
+        pres = np.full_like(peres,np.nan)
+        pvres = np.full_like(pveres,np.nan)
+        Oaf = np.full_like(Oaef,np.nan)
+        fprefactor = np.nan
+        print('fit OmegaA failed! (theta1 = %f, vheta1 = %f)'%(theta1,vheta1))
+    try:
+        pcres,pvcres,tf,Oacf,fprefactorc = fitn(ct,Oactot,tstart,tend)
+    except:
+        pcres = np.full_like(peres,np.nan)
+        pvcres = np.full_like(pveres,np.nan)
+        Oacf = np.full_like(Oaef,np.nan)
+        fprefactorc = np.nan
+        print('fit OmegaA_c failed! (theta1 = %f, vheta1 = %f)'%(theta1,vheta1))
 
-# extrapolation and its error
-Oaext = fprefactor/(1+pres[0])
-Oacext = fprefactorc/(1+pcres[0])
-Oaeext = fprefactore/(1+peres[0])
-# we simply estimate the error from variance of a1 only (df/da2 vanishes in the limit t -> infinity)
-Oaext_err = fprefactor*np.sqrt(pvres[0,0])/(1+pres[0])**2
-Oacext_err = fprefactorc*np.sqrt(pvcres[0,0])/(1+pcres[0])**2
-Oaeext_err = fprefactore*np.sqrt(pveres[0,0])/(1+peres[0])**2
-if verbose:
-    print('done',flush=True)
+    # extrapolation and its error
+    Oaext = fprefactor/(1+pres[0])
+    Oacext = fprefactorc/(1+pcres[0])
+    Oaeext = fprefactore/(1+peres[0])
+    # we simply estimate the error from variance of a1 only (df/da2 vanishes in the limit t -> infinity)
+    Oaext_err = fprefactor*np.sqrt(pvres[0,0])/(1+pres[0])**2
+    Oacext_err = fprefactorc*np.sqrt(pvcres[0,0])/(1+pcres[0])**2
+    Oaeext_err = fprefactore*np.sqrt(pveres[0,0])/(1+peres[0])**2
+    if verbose:
+        print('done',flush=True)
 
 # determine trapping time from energy including fluctuations
 if verbose:
@@ -315,7 +331,11 @@ else:
     theta_std_sigmamax = theta_std[imaxt]
 
 # determine dilution times
-fzero = (eAK0+eAG0+eAV0)/(eAK+eAG+eAV)
+# energy density evaluated by summing over the spectrum up to the cutoff momentum
+eAKc = (espCK.esp[:,:icut]).sum(axis=1)/L**3/R**4
+eAGc = (espG.esp[:,:icut]).sum(axis=1)/L**3/R**4
+eAVc = (espS.esp[:,:icut]).sum(axis=1)/L**3/R**4
+fzero = (eAK0+eAG0+eAV0)/(eAKc+eAGc+eAVc)
 if50 = np.where(fzero < 0.5)[0]
 if if50.size:
     ct_f50 = ct[if50[0]]
@@ -348,10 +368,9 @@ for i in range(len(psp)):
     NaV = kl**3*espS.esp[i]/(2*np.pi**2)/np.sqrt(mA[i]**2*R[i]**2 + kl**2)/nm/vheta1
     Na = NaK + NaG + NaV
     D2 = kl**3*psp[i]/nm/(np.pi**2)/eAm[i]**2
-    # we exclude k above the Nyquist frequency when identifying peaks
-    Nab = Na[k_below]
+    # we exclude k above the Nyquist frequency (for power spectrum) or pre-determined cutoff frequency (for number spectrum) when identifying peaks
+    Nab = Na[:icut]
     D2b = D2[k_below]
-    klb = kl[k_below]
     iNpeak = np.argmax(Nab)
     iPpeak = np.argmax(D2b)
     ANpeak.append(Nab[iNpeak])
@@ -491,6 +510,9 @@ if outarrays:
     sp.sdata(eAK0,outarrayname,'eAK0') # kinetic energy (zero mode contribution only)
     sp.sdata(eAG0,outarrayname,'eAG0') # gradient energy (zero mode contribution only)
     sp.sdata(eAV0,outarrayname,'eAV0') # potential energy (zero mode contribution only)
+    sp.sdata(eAKc,outarrayname,'eAKc') # kinetic energy (from spectrum sum with cutoff)
+    sp.sdata(eAGc,outarrayname,'eAGc') # gradient energy (from spectrum sum with cutoff)
+    sp.sdata(eAVc,outarrayname,'eAVc') # potential energy (from spectrum sum with cutoff)
     sp.sdata(eAm,outarrayname,'eAm') # masked energy
     sp.sdata(theta_mean,outarrayname,'theta_mean')
     sp.sdata(theta_std,outarrayname,'theta_std')
@@ -503,10 +525,11 @@ if outarrays:
     sp.sdata(Oac[:,1],outarrayname,'OmegaAh2_c_G')
     sp.sdata(Oac[:,2],outarrayname,'OmegaAh2_c_V')
     sp.sdata(Oae,outarrayname,'OmegaAh2_est')
-    sp.sdata(tf,outarrayname,'ct_fit')
-    sp.sdata(Oaf,outarrayname,'OmegaAh2_fit')
-    sp.sdata(Oacf,outarrayname,'OmegaAh2_c_fit')
-    sp.sdata(Oaef,outarrayname,'OmegaAh2_est_fit')
+    if dofit:
+        sp.sdata(tf,outarrayname,'ct_fit')
+        sp.sdata(Oaf,outarrayname,'OmegaAh2_fit')
+        sp.sdata(Oacf,outarrayname,'OmegaAh2_c_fit')
+        sp.sdata(Oaef,outarrayname,'OmegaAh2_est_fit')
     sp.sdata(ANpeak,outarrayname,'Amp_Npeak')
     sp.sdata(APpeak,outarrayname,'Amp_Ppeak')
     sp.sdata(kNpeak,outarrayname,'k_Npeak')
@@ -545,19 +568,24 @@ with open(path_outdir+'results.dat','a') as f:
         f.write('# Results for the field evolution and DM abundance \n')
         f.write('# \n')
         #f.write('# 1. fAGeV  2. theta1  3. vheta1  4. sizeN  5. sizeL  ')
-        f.write('# 1. index(t)  2. index(v)  3. theta1  4. vheta1  5. fAGeV \n')
+        f.write('# 1. index(t)  2. index(v)  3. theta1  4. vheta1  5. sizeL \n')
         f.write('# 6. ct_trap (u. e sum)  7. ct_trap (u. zero mode)  8. ct_stop  9. theta_s  10. sigmatheta_s \n')
         f.write('# 11. ct_sigmamax  12. theta_sigmamax  13. sigmathetamax \n')
         f.write('# 14. ct_dilution (50%)  15. ct_dilution (10%)  16. rho0/rhotot \n')
-        f.write('# 17. Omegah2  18. Omegah2_corrected  19. Omegah2_estimate  20. Omegah2(ext)  21. Omegah2_corrected(ext)  22. Omegah2_estimate(ext) \n')
-        f.write('# 23. Omegah2(ext)_err  24. Omegah2_corrected(ext)_err  25. Omegah2_estimate(ext)_err \n')
+        f.write('# 17. Omegah2  18. Omegah2_corrected  19. Omegah2_estimate \n')
+        if dofit:
+            f.write('# 20. Omegah2(ext)  21. Omegah2_corrected(ext)  22. Omegah2_estimate(ext) \n')
+            f.write('# 23. Omegah2(ext)_err  24. Omegah2_corrected(ext)_err  25. Omegah2_estimate(ext)_err \n')
         f.write('# \n')
     #f.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(fAGeV,theta1,vheta1,N,L))
-    f.write('{:d} {:d} {:.6g} {:.6g} {:.6g} '.format(ii,jj,theta1,vheta1,fAGeV))
+    f.write('{:d} {:d} {:.6g} {:.6g} {:.6g} '.format(ii,jj,theta1,vheta1,L))
     f.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(ct_trap,ct_trap0,ct_stop,theta_stop,theta_std_stop,ct_sigmamax,theta_sigmamax,theta_std_sigmamax))
     f.write('{:.6g} {:.6g} {:.6g} '.format(ct_f50,ct_f10,fzero[-1]))
-    f.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(Oatot[-1],Oactot[-1],Oae[-1],Oaext,Oacext,Oaeext))
-    f.write('{:.6g} {:.6g} {:.6g}\n'.format(Oaext_err,Oacext_err,Oaeext_err))
+    f.write('{:.6g} {:.6g} {:.6g} '.format(Oatot[-1],Oactot[-1],Oae[-1]))
+    if dofit:
+        f.write('{:.6g} {:.6g} {:.6g} '.format(Oaext,Oacext,Oaeext))
+        f.write('{:.6g} {:.6g} {:.6g} '.format(Oaext_err,Oacext_err,Oaeext_err))
+    f.write('\n')
 
 # output spectrum features in another file
 is_new_sp = not os.path.exists(path_outdir+'results_spectrum.dat')
@@ -583,17 +611,22 @@ with open(path_outdir+'results_spectrum.dat','a') as fsp:
     fsp.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(ct_Npeakmin,kNpeakmin,ANpeakmin,kP_Npeakmin,AP_Npeakmin))
     fsp.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(ct_Ppeakmax,kN_Ppeakmax,AN_Ppeakmax,kPpeakmax,APpeakmax))
     fsp.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(ct_Ppeakmin,kN_Ppeakmin,AN_Ppeakmin,kPpeakmin,APpeakmin))
-    fsp.write('{:.6g} {:.6g} {:.6g} {:.6g}\n'.format(R_stop,mA_stop,R_sigmamax,mA_sigmamax))
+    fsp.write('{:.6g} {:.6g} {:.6g} {:.6g} '.format(R_stop,mA_stop,R_sigmamax,mA_sigmamax))
+    fsp.write('\n')
 
 # output fit results in auxilialy file
-is_new_a = not os.path.exists(path_outdir+'aux.dat')
-with open(path_outdir+'aux.dat','a') as fa:
-    if is_new_a:
-        fa.write('# 1. index(t)  2. index(v)  3. theta1  4. vheta1  5. fAGeV \n')
-        fa.write('# 6. a1  7. a2  8. a1(corrected)  9. a2(corrected)  10. a1(estimate)  11. a2(estimate) \n')
-        fa.write('# \n')
-    fa.write('{:d} {:d} {:.6g} {:.6g} {:.6g} '.format(ii,jj,theta1,vheta1,fAGeV))
-    fa.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g}\n'.format(pres[0],pres[1],pcres[0],pcres[1],peres[0],peres[1]))
+if dofit:
+    is_new_a = not os.path.exists(path_outdir+'aux.dat')
+    with open(path_outdir+'aux.dat','a') as fa:
+        if is_new_a:
+            fa.write('# 1. index(t)  2. index(v)  3. theta1  4. vheta1  5. fAGeV \n')
+            fa.write('# 6. a1  7. a2  8. a1(corrected)  9. a2(corrected)  10. a1(estimate)  11. a2(estimate) \n')
+            fa.write('# 12. a1(no cutoff)  13. a2(no cutoff)  14. a1(no cutoff, corrected)  15. a2(no cutoff, corrected) \n')
+            fa.write('# \n')
+        fa.write('{:d} {:d} {:.6g} {:.6g} {:.6g} '.format(ii,jj,theta1,vheta1,fAGeV))
+        fa.write('{:.6g} {:.6g} {:.6g} {:.6g} {:.6g} {:.6g} '.format(pres_C[0],pres_C[1],pcres_C[0],pcres_C[1],peres[0],peres[1]))
+        fa.write('{:.6g} {:.6g} {:.6g} {:.6g} '.format(pres[0],pres[1],pcres[0],pcres[1]))
+        fa.write('\n')
 
 if verbose:
     print('done',flush=True)
@@ -634,11 +667,12 @@ print('   spectrum sum                  {:.6f}'.format(Oatot[-1]))
 print('   spectrum sum with m_eff       {:.6f}'.format(Oactot[-1]))
 print('   estimate from energy/mass     {:.6f}'.format(Oae[-1]))
 print('')
-print(' OmegaA*h^2 (extrapolated)')
-print('   spectrum sum                  {:.6f} +- {:.6f}'.format(Oaext,Oaext_err))
-print('   spectrum sum with m_eff       {:.6f} +- {:.6f}'.format(Oacext,Oacext_err))
-print('   estimate from energy/mass     {:.6f} +- {:.6f}'.format(Oaeext,Oaeext_err))
-print('')
+if dofit:
+    print(' OmegaA*h^2 (extrapolated)')
+    print('   spectrum sum                  {:.6f} +- {:.6f}'.format(Oaext,Oaext_err))
+    print('   spectrum sum with m_eff       {:.6f} +- {:.6f}'.format(Oacext,Oacext_err))
+    print('   estimate from energy/mass     {:.6f} +- {:.6f}'.format(Oaeext,Oaeext_err))
+    print('')
 print('-----------------------------------------------------------------------')
 
 

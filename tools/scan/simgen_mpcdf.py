@@ -29,10 +29,9 @@ def simgen_mpcdf(name,itheta=0,jobname='',mem=0,nodes=2,ntaskspernode=2,cpuspert
         '#SBATCH --ntasks-per-node=%d'%ntaskspernode+'\n',
         '#SBATCH --cpus-per-task=%d'%cpuspertask+'\n',
         '#SBATCH --output '+output+'\n',
-        '#SBATCH --error '+error+'\n']
-    if mailuser:
-        pres.append('#SBATCH --mail-type='+mailtype+'\n')
-        pres.append('#SBATCH --mail-user='+mailuser+'\n')
+        '#SBATCH --error '+error+'\n',
+        '#SBATCH --mail-type='+mailtype+'\n',
+        '#SBATCH --mail-user='+mailuser+'\n']
     if mem:
         pres.append('#SBATCH --mem=%d'%mem+'\n')
     if jobname:
@@ -81,19 +80,34 @@ def simgen_mpcdf(name,itheta=0,jobname='',mem=0,nodes=2,ntaskspernode=2,cpuspert
     f.write('ii=%d\n'%itheta)
     f.write('thetai=%f\n'%theta1)
     f.write('\n')   
+    f.write('VSTART=$(printf "%f" 2e+2)\n') # decrease L from LSTART to LEND as vheta changes from VSTART to VEND
+    f.write('VEND=$(printf "%f" 1e+4)\n')
+    f.write('LSTART=0.2\n')
+    f.write('LEND=0.05\n')
+    f.write('CA=$(echo "($LSTART-$LEND)/(l($VSTART)-l($VEND))" | bc -l)\n')
+    f.write('CB=$(echo "($LEND*l($VSTART)-$LSTART*l($VEND))/(l($VSTART)-l($VEND))" | bc -l)\n')
+    f.write('\n')
     f.write('for jj in $(seq 0 204) ; do\n')
     #f.write('for jj in 0 34 68 102 136 170 204 ; do\n')
-    f.write('vhetai=$(echo "e((6*$jj/204-1)*l(10))" | bc -l)\n')
+    f.write('vhetai=$(echo "e((6*$jj/204.0-1)*l(10))" | bc -l)\n')
+    f.write('if [ "$(echo "$vhetai < $VSTART" | bc -l)" -eq 1 ]; then\n')
+    f.write('L=$LSTART\n')
+    f.write('elif [ "$(echo "$vhetai > $VEND" | bc -l)" -eq 1 ]; then\n')
+    f.write('L=$LEND\n')
+    f.write('else\n')
+    f.write('L=$(echo "$CA*l($vhetai)+$CB" | bc -l)\n')
+    f.write('fi\n')
     f.write('echo\n')
-    f.write('echo "========================== ($ii,$jj): theta1 = $thetai, vheta1 = $vhetai =========================="\n')
+    f.write('echo "========================== ($ii,$jj): theta1 = $thetai, vheta1 = $vhetai, L = $L =========================="\n')
     f.write('nmdir="$(printf "i%03dj%03d" "$ii" "$jj")"\n')
     f.write('mkdir -p "$nmdir"\n')
     f.write('cp measfile.dat inco.py analysis.py "$nmdir"\n')
     f.write('cd "$nmdir"\n')
-    f.write('python3 inco.py %d %f $thetai $vhetai\n'%(N,L))
-    f.write('srun -n $RANKS -c $OMP_NUM_THREADS vaxion3d $GRID $SIMU $PHYS $VQCD $INCO $OUTP 2>&1 | tee log.txt\n')
+    f.write('python3 inco.py %d $L $thetai $vhetai\n'%(N))
+    f.write('srun -n $RANKS -c $OMP_NUM_THREADS vaxion3d $GRID $SIMU $PHYS $VQCD $INCO $OUTP --lsize $L 2>&1 | tee log.txt\n')
     f.write('python3 analysis.py ./ %d $ii $jj $thetai $vhetai ../\n'%(fA))
     f.write('rm -r ./out/m\n')
+    f.write('rm ./out/sample.txt\n')
     f.write('if [ $jj -ne 0 ]; then\n') # remove axion.log.0 file except for jj=0 
     f.write('rm ./axion.log.0\n')
     f.write('fi\n')
