@@ -7,11 +7,11 @@
 
 ## Overview
 
-This repository provides python tools for performing calculations and simulations related to **(kinetic) misalignment mechanism for QCD axions**.
+This repository provides python tools for performing calculations and simulations related to the **(kinetic) misalignment mechanism for QCD axions**.
 
 ## Installation
 
-Clone the repository along with its dependencies:
+Clone the repository:
 ```bash
 git clone  https://github.com/mathieukaltschmidt/kinetic-misalignment.git
 cd kinetic-misalignment
