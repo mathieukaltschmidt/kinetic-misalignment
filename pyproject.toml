@@ -1,0 +1,47 @@
+[project]
+name = "kinetic-misalignment"
+version = "0.1.0"
+description = "Simulations of the kinetic misalignment mechanism for QCD axions"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Kierthika Chathirathas", email = "kierthika.chathirathas@kit.edu" },
+    { name = "Mathieu Kaltschmidt", email = "mkaltschmidt@unizar.es" },
+    { name = "Javier Redondo",       email = "jredondo@unizar.es" },
+    { name = "Kenichi Saikawa", email = "saikawa@hep.s.kanazawa-u.ac.jp" },
+
+]
+keywords = ["axion", "cosmology", "dark matter", "QCD", "BSM", "early universe"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Intended Audience :: Science/Research",
+    "Development Status :: 3 - Alpha",
+]
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "pandas>=1.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "jupyter",
+    "matplotlib",
+]
+
+[project.urls]
+Repository = "https://github.com/mathieukaltschmidt/kinetic-misalignment"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools*"]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
