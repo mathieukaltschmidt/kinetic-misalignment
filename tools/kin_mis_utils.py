@@ -6,7 +6,6 @@ Functions:
     - genspec_kinetic_mis: Generates initial condition.
     - find_params: Finds pairs of initial field and velocity that gives the correct dark matter abundance.
                    Starts from vheta1 = 0 and walks forward.
-    - find_all_axitons: Identifies axitons from a 2D energy density projection map.
 """
 
 # Modules
