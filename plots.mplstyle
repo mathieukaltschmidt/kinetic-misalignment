@@ -34,9 +34,9 @@ lines.solid_capstyle : round
 
 # Font style
 font.family : serif
-text.usetex : True
+text.usetex : False
 font.size:    28.0
-font.serif: Computer Modern
+mathtext.fontset : cm
 
 # margins
 #axes.xmargin : 0

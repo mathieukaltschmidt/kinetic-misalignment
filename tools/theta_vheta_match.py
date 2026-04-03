@@ -15,7 +15,7 @@ vheta1_range_list = [(10, 11, 1.0)] # Define vheta1 ranges and steps
 fAGeV = 1e10 # Axion decay constant in GeV
 
 def worker(vheta1_range):
-    tautab = np.linspace(1, 5, 1000)  # Normalized conformal time, SHOULD START AT 1!
+    tautab = np.linspace(1.0, 5.0, 1000)  # Normalized conformal time, SHOULD START AT 1!
     matches = find_params(fAGeV, tautab, vheta1_range, target = 0.12, tol = 0.005)
     result = []
 

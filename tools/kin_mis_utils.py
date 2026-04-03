@@ -3,7 +3,7 @@ Module for computing axion cosmology observables in the kinetic misalignment sce
 
 Functions:
     - evolution_kinetic_mis: Solves the axion field evolution with temperature-dependent potential.
-    - genspec_kinetic_mis: Generates initial condition.
+    - genspec_kinetic_mis: Generates initial conditions.
     - find_params: Finds pairs of initial field and velocity that gives the correct dark matter abundance.
                    Starts from vheta1 = 0 and walks forward.
 """
@@ -14,11 +14,10 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.integrate import odeint
 from scipy.optimize import minimize, minimize_scalar
-from scipy.ndimage import maximum_filter
 
 def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     """
-    Solves the axion field equation of motion for a kinetic misalignment scenario within the jAxions cosmological framework
+    Solves the axion field equation of motion for a kinetic misalignment scenario within the jaxions cosmological framework
     and computes the resulting axion relic abundance.
     Physical constants (GN, T0, rhocritGeVcm^-3) are taken from
     https://pdg.lbl.gov/2015/reviews/rpp2015-rev-astrophysical-constants.pdf.
@@ -39,16 +38,16 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
             - 'TMeV_trap': Temperature at which axion becomes trapped (if occurs), else None.
             - 'HMeV_trap': Hubble parameter at which axion becomes trapped (if occurs), else None.
             - 'R_trap': Scale factor at which axion becomes trapped (if occurs), else None.
-            - 'mAMeV_trap': Axion mass at which axion becomes trapped in MeV (if occurs), else None.
+            - 'mAMeV_trap': Axion mass when axion becomes trapped in MeV (if occurs), else None.
             - 'grhotab': Evolution of energy density dof.
-            - 'gstab': # Evolution of entropy density dof.
+            - 'gstab': Evolution of entropy density dof.
             - 'TMeVtab': Array of temperatures in MeV corresponding to tautab.
-            - 'thetatab': Field values corresponding to tautab.
-            - 'vhetatab': Velocity values/H1 corresponding to tautab.
+            - 'thetatab': Array of field values corresponding to tautab.
+            - 'vhetatab': Array of velocity values/H₁ corresponding to tautab.
             - 'Omegah2tab': Array of axion relic density Ωh² corresponding to tautab.
     """
 
-    # ----- Constants -----
+    # ----- Constant -----
     GN = 1/(1.22093e19*1e3)**2 # Newton’s gravitational constant in MeV⁻²
 
     # ----- Degrees of Freedom -----
@@ -138,7 +137,7 @@ def evolution_kinetic_mis(fAGeV, theta1, vheta1, tautab):
     def solveom(theta1, vheta1, eta1, tautab):
         # Assume τ₁ = tautab[0] = 1
         # ψ = θ * R/R₁
-        # ψ' = ∂_τ psi = R/R₁ * ∂_τ θ + θ * ∂_τ R/R₁
+        # ψ' = ∂_τ ψ = R/R₁ * ∂_τ θ + θ * ∂_τ R/R₁
         #    =  R/R₁ * R * η₁ * H₁ * (θ̇/H₁) + θ * (R_τ/R₁) with η₁ = 1/H₁R₁
         #    = (R/R₁)^2 * (θ̇/H₁) + θ * (R_τ/R₁)
         psi1 = theta1 # Conformal field
@@ -204,9 +203,9 @@ def genspec_kinetic_mis(N, L, theta1, vheta1, hom = False):
 
     Args:
         N (int): Number of points per spatial dimension.
-        L (float): Physical size of simulation box in L1 units.
+        L (float): Physical size of simulation box in L₁ units.
         theta1 (float): Axion field value at η₁.
-        vheta1 (float): Axion velocity/H1 value at η₁.
+        vheta1 (float): Axion velocity/H₁ value at η₁.
         hom (float, optional): If set to True, no fluctuations added. Defaults to False.
 
     Returns:
@@ -222,7 +221,7 @@ def genspec_kinetic_mis(N, L, theta1, vheta1, hom = False):
     m0 = theta1
     v0 = vheta1 + theta1
 
-    # |FT{Ψ}| for jAxions
+    # |FT{Ψ}| for jaxions
     m = np.empty_like(k)
     m[0] = m0 # Zero mode
     if hom:
@@ -230,7 +229,7 @@ def genspec_kinetic_mis(N, L, theta1, vheta1, hom = False):
     else:
         m[1:] = 4.5 * 10**-5 * (L*k[1:])**(-3/2) * vheta1
 
-    # |FT{Ψ'}| for jAxions
+    # |FT{Ψ'}| for jaxions
     v = np.zeros_like(m)
     v[0] = v0 # Zero mode
 
