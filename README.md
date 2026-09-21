@@ -36,10 +36,15 @@ tools.ipynb
 
 If you use this repository for a scientific publication, please cite:
 ```bibtex
-@unpublished{KM:2026,
-    author = "Chathirathas, K. and Kaltschmidt, M. and others",
-    title  = "{Axion Miniclusters in the Pre-Inflationary Scenario}",
-    year   = "2026"
+@article{Chathirathas:2026lxz,
+    author = {Chathirathas, Kierthika and Er{\"o}ncel, Cem and Kaltschmidt, Mathieu and Redondo, Javier and Saikawa, Kenichi},
+    title = "{Amnesia in the Axion Misalignment Landscape}",
+    eprint = "2608.04139",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    reportNumber = "KANAZAWA-26-05",
+    month = "8",
+    year = "2026"
 }
 ```
 
